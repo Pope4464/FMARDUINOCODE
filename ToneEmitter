@@ -1,0 +1,82 @@
+#include "pitches.h"
+int CK = 13; // Clock
+int DA = 11; // Data
+int LA = 10; // Latch
+
+int AudioPin = 9; // Tone Output
+
+int notes[] = {
+  NOTE_A4, NOTE_B4, NOTE_C3
+};
+
+int numNotes = 3;
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(CK, OUTPUT);
+  pinMode(DA, OUTPUT);
+  pinMode(LA, OUTPUT);
+  digitalWrite(LA, LOW); //Unlatch transmitter
+  delay(100);            //Wait
+  spi_send(0x0E, B00000101); //Software reset
+  spi_send(0x01, B10110100); //Register 1: forced subcarrier, pilot tone on
+  spi_send(0x02, B00000011); //Register 2: Unlock detect off, 2mW Tx Power
+  spi_send(0x03, B10001010); //Register 3: Set broadcast freq to 97.3, lower byte
+  spi_send(0x04, B00101110); //Register 4: Set broadcast freq to 97.3, upper byte
+ spi_send(0x08, B00011010); //Register 8: set Osc on band 2
+  spi_send(0x00, B10100001); //Register 0: 200mV audio input, 75us pre-emphasis on, crystal off, power on
+  spi_send(0x0E, B00000101); //Software reset
+  spi_send(0x06, B00011110); //Register 6: charge pumps at 320uA and 80 uA
+  Serial.print("Transmitting");  //for debugging
+
+}
+
+void loop() {
+  // square wave tones
+  //tone(9, notes[random(numNotes)], 500);
+  // random frequency
+  tone(9, random(50, 5000), 20);
+  delay(10);
+}
+
+void spi_send(byte reg, byte data)  //Routine to send Register Address and Data as LSB-first SPI
+{
+  int x;
+  int n;
+  digitalWrite(LA, LOW);
+
+  for (x = 0 ; x < 4 ; x++)          //Send four-bit register address
+  {
+    digitalWrite(CK, LOW);         //Toggle the SPI clock
+    n = (reg >> x) & 1;            //n is the xth bit of the register byte
+    if (n == 1) {
+      digitalWrite(DA, HIGH);    //Put high bit on SPI data bus
+    }
+    else {
+      digitalWrite(DA, LOW);     //Put low bit on SPI data bus
+    }
+    Serial.print(n);
+    digitalWrite(CK, HIGH);        //Toggle the SPI clock
+  }
+
+  for (x = 0 ; x < 8 ; x++)          //Send eight-bit register data
+  {
+    digitalWrite(CK, LOW);         //Toggle the SPI clock
+    n = (data >> x) & 1;
+    if (n == 1) {
+      digitalWrite(DA, HIGH);    //Put high bit on SPI data bus
+    }
+    else {
+      digitalWrite(DA, LOW);    //Put low bit on SPI data bus
+    }
+    Serial.print(n);
+    digitalWrite(CK, HIGH);       //Toggle the SPI clock
+  }
+  delayMicroseconds(1);           //Wait
+  digitalWrite(LA, HIGH);           //Latch this transfer
+  delayMicroseconds(4);
+  digitalWrite(LA, LOW);
+  digitalWrite(CK, LOW);            //Keep CK pin at 0V at end of data transfer
+  Serial.print("\n");               // Send new-line to serial for debugging
+
+}
